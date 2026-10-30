@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'screens/home_screen.dart';
+import 'screens/home_shell.dart';
 
 void main() {
   runApp(const PuzzleQuestApp());
@@ -17,7 +17,7 @@ class PuzzleQuestApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4A5FC1)),
         useMaterial3: true,
       ),
-      home: const HomeScreen(),
+      home: const HomeShell(),
     );
   }
 }
