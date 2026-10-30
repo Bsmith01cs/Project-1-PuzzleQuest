@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../repositories/puzzle_repository.dart';
 import 'catalog_screen.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key});
+  const HomeShell({super.key, this.puzzleRepository});
+
+  final PuzzleRepository? puzzleRepository;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -22,7 +25,11 @@ class _HomeShellState extends State<HomeShell> {
       appBar: AppBar(title: Text(_titles[_selectedIndex])),
       body: IndexedStack(
         index: _selectedIndex,
-        children: const [CatalogScreen(), HistoryScreen(), SettingsScreen()],
+        children: [
+          CatalogScreen(repository: widget.puzzleRepository),
+          const HistoryScreen(),
+          const SettingsScreen(),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
