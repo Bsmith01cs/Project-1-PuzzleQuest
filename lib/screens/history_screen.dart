@@ -77,6 +77,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
       widget.attempts ?? AttemptRepository();
   late final PuzzleRepository _puzzles = widget.puzzles ?? PuzzleRepository();
 
+  // Owned by the screen, not by the note dialog: the dialog's text field keeps
+  // rebuilding while the route animates away, so a controller disposed as soon
+  // as showDialog returns is still in use.
+  final TextEditingController _noteController = TextEditingController();
+
   List<Attempt> _allAttempts = const [];
   Map<int, Puzzle> _puzzlesById = const {};
   String? _statusFilter;
@@ -87,6 +92,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -130,7 +141,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _editNote(Attempt attempt) async {
-    final controller = TextEditingController(text: attempt.userNote ?? '');
+    final controller = _noteController..text = attempt.userNote ?? '';
 
     final note = await showDialog<String>(
       context: context,
@@ -169,8 +180,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
         },
       ),
     );
-
-    controller.dispose();
 
     final id = attempt.id;
     if (note == null || id == null) {
