@@ -2,15 +2,22 @@ import 'package:flutter/material.dart';
 
 import '../repositories/attempt_repository.dart';
 import '../repositories/puzzle_repository.dart';
+import '../settings/settings_controller.dart';
 import 'catalog_screen.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key, this.puzzleRepository, this.attemptRepository});
+  const HomeShell({
+    super.key,
+    this.puzzleRepository,
+    this.attemptRepository,
+    this.settings,
+  });
 
   final PuzzleRepository? puzzleRepository;
   final AttemptRepository? attemptRepository;
+  final SettingsController? settings;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -19,11 +26,23 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   static const _titles = ['PuzzleQuest', 'History & Insights', 'Settings'];
 
+  late final SettingsController _settings =
+      widget.settings ?? SettingsController();
+
   int _selectedIndex = 0;
 
   // Bumped whenever History is opened so the screen reloads its attempts and
   // statistics instead of showing what it read the last time.
   int _historyVisit = 0;
+
+  @override
+  void dispose() {
+    // Only a controller this shell created is ours to dispose.
+    if (widget.settings == null) {
+      _settings.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +57,7 @@ class _HomeShellState extends State<HomeShell> {
             attempts: widget.attemptRepository,
             puzzles: widget.puzzleRepository,
           ),
-          const SettingsScreen(),
+          SettingsScreen(settings: _settings),
         ],
       ),
       bottomNavigationBar: NavigationBar(

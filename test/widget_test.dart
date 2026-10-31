@@ -375,7 +375,8 @@ void main() {
 
       await tester.tap(find.widgetWithText(NavigationDestination, 'Settings'));
       await tester.pumpAndSettle();
-      expect(find.text('App preferences will appear here.'), findsOneWidget);
+      expect(find.text('Dark theme'), findsOneWidget);
+      expect(find.text('Reduced motion'), findsOneWidget);
 
       await tester.tap(find.widgetWithText(NavigationDestination, 'Catalog'));
       await tester.pumpAndSettle();
