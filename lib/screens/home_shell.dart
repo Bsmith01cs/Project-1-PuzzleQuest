@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 
+import '../repositories/attempt_repository.dart';
 import '../repositories/puzzle_repository.dart';
 import 'catalog_screen.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key, this.puzzleRepository});
+  const HomeShell({super.key, this.puzzleRepository, this.attemptRepository});
 
   final PuzzleRepository? puzzleRepository;
+  final AttemptRepository? attemptRepository;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -19,6 +21,10 @@ class _HomeShellState extends State<HomeShell> {
 
   int _selectedIndex = 0;
 
+  // Bumped whenever History is opened so the screen reloads its attempts and
+  // statistics instead of showing what it read the last time.
+  int _historyVisit = 0;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -27,14 +33,22 @@ class _HomeShellState extends State<HomeShell> {
         index: _selectedIndex,
         children: [
           CatalogScreen(repository: widget.puzzleRepository),
-          const HistoryScreen(),
+          HistoryScreen(
+            key: ValueKey(_historyVisit),
+            attempts: widget.attemptRepository,
+            puzzles: widget.puzzleRepository,
+          ),
           const SettingsScreen(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) =>
-            setState(() => _selectedIndex = index),
+        onDestinationSelected: (index) => setState(() {
+          if (index == 1 && _selectedIndex != 1) {
+            _historyVisit++;
+          }
+          _selectedIndex = index;
+        }),
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.grid_view_outlined),

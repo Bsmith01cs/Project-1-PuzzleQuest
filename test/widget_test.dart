@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:puzzle_quest/models/attempt.dart';
 import 'package:puzzle_quest/models/puzzle.dart';
+import 'package:puzzle_quest/repositories/attempt_repository.dart';
 import 'package:puzzle_quest/repositories/puzzle_repository.dart';
 import 'package:puzzle_quest/screens/editor_screen.dart';
 import 'package:puzzle_quest/screens/home_shell.dart';
@@ -46,6 +48,27 @@ class FakePuzzleRepository extends PuzzleRepository {
   }
 }
 
+class FakeAttemptRepository extends AttemptRepository {
+  FakeAttemptRepository([List<Attempt>? attempts])
+    : attempts = List<Attempt>.from(attempts ?? const <Attempt>[]);
+
+  final List<Attempt> attempts;
+
+  @override
+  Future<List<Attempt>> findAll() async =>
+      List<Attempt>.unmodifiable(attempts);
+}
+
+Attempt buildAttempt({required int id, int puzzleId = 1}) {
+  return Attempt(
+    id: id,
+    puzzleId: puzzleId,
+    status: Attempt.statusSolved,
+    elapsedSeconds: 30,
+    startedAt: DateTime.utc(2026, 3, id),
+  );
+}
+
 Puzzle buildPuzzle({
   required int id,
   required String answer,
@@ -65,8 +88,16 @@ Puzzle buildPuzzle({
   );
 }
 
-Widget wrapShell(FakePuzzleRepository repository) {
-  return MaterialApp(home: HomeShell(puzzleRepository: repository));
+Widget wrapShell(
+  FakePuzzleRepository repository, {
+  FakeAttemptRepository? attempts,
+}) {
+  return MaterialApp(
+    home: HomeShell(
+      puzzleRepository: repository,
+      attemptRepository: attempts ?? FakeAttemptRepository(),
+    ),
+  );
 }
 
 void main() {
@@ -349,6 +380,38 @@ void main() {
       await tester.tap(find.widgetWithText(NavigationDestination, 'Catalog'));
       await tester.pumpAndSettle();
       expect(find.widgetWithText(AppBar, 'PuzzleQuest'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('returning to History reloads the attempts', (tester) async {
+      final puzzles = FakePuzzleRepository([
+        buildPuzzle(id: 1, answer: 'FLUTTER'),
+      ]);
+      final attempts = FakeAttemptRepository();
+
+      await tester.pumpWidget(wrapShell(puzzles, attempts: attempts));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(NavigationDestination, 'History'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('No attempts yet. Play a puzzle to start your history.'),
+        findsOneWidget,
+      );
+
+      attempts.attempts.add(buildAttempt(id: 1));
+
+      await tester.tap(find.widgetWithText(NavigationDestination, 'Catalog'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(NavigationDestination, 'History'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Technology · Solved'), findsOneWidget);
+      expect(
+        find.text('No attempts yet. Play a puzzle to start your history.'),
+        findsNothing,
+      );
       expect(tester.takeException(), isNull);
     });
 

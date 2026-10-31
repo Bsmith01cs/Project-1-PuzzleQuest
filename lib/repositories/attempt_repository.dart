@@ -14,6 +14,12 @@ class AttemptRepository {
     return db.insert('attempts', attempt.toMap());
   }
 
+  Future<List<Attempt>> findAll() async {
+    final db = await _helper.database;
+    final rows = await db.query('attempts', orderBy: 'started_at DESC');
+    return rows.map(Attempt.fromMap).toList();
+  }
+
   Future<List<Attempt>> findByPuzzle(int puzzleId) async {
     final db = await _helper.database;
     final rows = await db.query(
@@ -56,6 +62,16 @@ class AttemptRepository {
       where: 'id = ?',
       whereArgs: [attempt.id],
       conflictAlgorithm: ConflictAlgorithm.abort,
+    );
+  }
+
+  Future<int> updateNote(int id, String? note) async {
+    final db = await _helper.database;
+    return db.update(
+      'attempts',
+      {'user_note': note},
+      where: 'id = ?',
+      whereArgs: [id],
     );
   }
 
