@@ -76,6 +76,12 @@ class _CatalogScreenState extends State<CatalogScreen> {
     }
   }
 
+  void _openPlay(Puzzle puzzle) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => PlayScreen(puzzle: puzzle)));
+  }
+
   Future<void> _confirmDelete(Puzzle puzzle) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -157,12 +163,6 @@ class _CatalogScreenState extends State<CatalogScreen> {
           ),
           const SizedBox(height: 8),
           Expanded(child: _content(theme, visible)),
-          OutlinedButton(
-            onPressed: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const PlayScreen())),
-            child: const Text('Preview Play screen'),
-          ),
         ],
       ),
     );
@@ -244,11 +244,21 @@ class _CatalogScreenState extends State<CatalogScreen> {
             subtitle: Text(
               '${puzzle.category} · ${difficultyLabel(puzzle.difficulty)}',
             ),
-            onTap: () => _openEditor(puzzle),
-            trailing: IconButton(
-              tooltip: 'Delete',
-              icon: const Icon(Icons.delete_outline),
-              onPressed: () => _confirmDelete(puzzle),
+            onTap: () => _openPlay(puzzle),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Edit',
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => _openEditor(puzzle),
+                ),
+                IconButton(
+                  tooltip: 'Delete',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () => _confirmDelete(puzzle),
+                ),
+              ],
             ),
           ),
         );

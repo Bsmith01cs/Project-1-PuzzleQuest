@@ -281,7 +281,7 @@ void main() {
       expect(find.text('1 puzzle'), findsOneWidget);
     });
 
-    testWidgets('tapping a puzzle opens the editor prefilled', (tester) async {
+    testWidgets('the edit action opens the editor prefilled', (tester) async {
       final repository = FakePuzzleRepository([
         buildPuzzle(id: 1, answer: 'FLUTTER', difficulty: 3),
       ]);
@@ -289,7 +289,7 @@ void main() {
       await tester.pumpWidget(wrapShell(repository));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Clue for FLUTTER'));
+      await tester.tap(find.byIcon(Icons.edit_outlined));
       await tester.pumpAndSettle();
 
       expect(find.widgetWithText(AppBar, 'Edit Puzzle'), findsOneWidget);
@@ -302,6 +302,32 @@ void main() {
       expect(repository.updated, hasLength(1));
       expect(repository.updated.single.id, 1);
       expect(find.widgetWithText(AppBar, 'PuzzleQuest'), findsOneWidget);
+    });
+  });
+
+  group('play navigation', () {
+    testWidgets('tapping a puzzle opens the play screen, not the editor', (
+      tester,
+    ) async {
+      final repository = FakePuzzleRepository([
+        buildPuzzle(id: 1, answer: 'FLUTTER'),
+      ]);
+
+      await tester.pumpWidget(wrapShell(repository));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Clue for FLUTTER'));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(AppBar, 'Play Puzzle'), findsOneWidget);
+      expect(find.widgetWithText(AppBar, 'Edit Puzzle'), findsNothing);
+      expect(find.widgetWithText(FilledButton, 'Start'), findsOneWidget);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(AppBar, 'PuzzleQuest'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 
@@ -321,24 +347,6 @@ void main() {
       expect(find.text('App preferences will appear here.'), findsOneWidget);
 
       await tester.tap(find.widgetWithText(NavigationDestination, 'Catalog'));
-      await tester.pumpAndSettle();
-      expect(find.widgetWithText(AppBar, 'PuzzleQuest'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('play screen opens from the catalog and closes again', (
-      tester,
-    ) async {
-      await tester.pumpWidget(wrapShell(FakePuzzleRepository()));
-      await tester.pumpAndSettle();
-
-      await tester.tap(
-        find.widgetWithText(OutlinedButton, 'Preview Play screen'),
-      );
-      await tester.pumpAndSettle();
-      expect(find.widgetWithText(AppBar, 'Play Puzzle'), findsOneWidget);
-
-      await tester.pageBack();
       await tester.pumpAndSettle();
       expect(find.widgetWithText(AppBar, 'PuzzleQuest'), findsOneWidget);
       expect(tester.takeException(), isNull);
