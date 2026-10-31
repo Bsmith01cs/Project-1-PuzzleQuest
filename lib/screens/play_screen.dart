@@ -69,17 +69,19 @@ class _PlayScreenState extends State<PlayScreen> with WidgetsBindingObserver {
   int _elapsedSeconds = 0;
   int _hintsUsed = 0;
 
-  // Hints already counted by an earlier session. The attempts table stores
-  // only a count, never which kinds were shown, so this is the floor the
-  // total can never drop below.
+  // Hints counted by a row written before hint kinds were stored. Such a row
+  // names no kinds, so its count is the floor the total cannot drop below.
   int _restoredHints = 0;
 
   // One entry per hint kind, so a hint is offered once and revealed once.
+  // Restored from the attempt, so a hint already accepted is never offered
+  // again after a restart.
   final Set<HintKind> _revealedHints = {};
   final Set<HintKind> _declinedHints = {};
 
   int? _attemptId;
   String? _lastGuess;
+  String? _userNote;
   DateTime _startedAt = DateTime.now().toUtc();
   DateTime? _finishedAt;
   bool _restoring = true;
@@ -161,9 +163,16 @@ class _PlayScreenState extends State<PlayScreen> with WidgetsBindingObserver {
       _elapsedSeconds = restored.elapsedSeconds;
       // A stored count outside the possible range is treated as the nearest
       // valid one rather than trusted.
-      _hintsUsed = restored.hintsUsed.clamp(0, HintKind.values.length);
-      _restoredHints = _hintsUsed;
+      _revealedHints
+        ..clear()
+        ..addAll(decodeHintKinds(restored.hintKinds));
+      // A stored count outside the possible range is treated as the nearest
+      // valid one rather than trusted.
+      _restoredHints = restored.hintsUsed.clamp(0, HintKind.values.length);
+      _hintsUsed = max(_restoredHints, _revealedHints.length);
       _lastGuess = restored.lastGuess;
+      // Carried so saving gameplay cannot wipe a note written in History.
+      _userNote = restored.userNote;
       // A reopened attempt always arrives paused: the clock must not count
       // the time the puzzle was closed.
       _status = untouched ? GameStatus.ready : GameStatus.paused;
@@ -212,8 +221,10 @@ class _PlayScreenState extends State<PlayScreen> with WidgetsBindingObserver {
       status: _savedStatus,
       wrongGuesses: _wrongGuesses,
       hintsUsed: _hintsUsed,
+      hintKinds: encodeHintKinds(_revealedHints),
       elapsedSeconds: _elapsedSeconds,
       lastGuess: _lastGuess,
+      userNote: _userNote,
       startedAt: _startedAt,
       finishedAt: _finishedAt,
     );
@@ -290,6 +301,7 @@ class _PlayScreenState extends State<PlayScreen> with WidgetsBindingObserver {
       _feedback = null;
       _notice = null;
       _lastGuess = null;
+      _userNote = null;
       _finishedAt = null;
       _startedAt = DateTime.now().toUtc();
     });
@@ -370,9 +382,8 @@ class _PlayScreenState extends State<PlayScreen> with WidgetsBindingObserver {
     setState(() {
       _revealedHints.add(kind);
       _declinedHints.remove(kind);
-      // One count per distinct kind. A hint revealed before a restart cannot
-      // be matched to its kind, so the larger of the two keeps a restored
-      // hint from being counted twice.
+      // One count per distinct kind. The floor only matters for a row that
+      // stored a count without its kinds.
       _hintsUsed = max(_restoredHints, _revealedHints.length);
     });
     _enqueueSave();
@@ -551,10 +562,7 @@ class _PlayScreenState extends State<PlayScreen> with WidgetsBindingObserver {
               children: [
                 Text('Hint available', style: theme.textTheme.titleSmall),
                 const SizedBox(height: 4),
-                Text(
-                  suggestion.explanation,
-                  style: theme.textTheme.bodySmall,
-                ),
+                Text(suggestion.explanation, style: theme.textTheme.bodySmall),
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -588,10 +596,16 @@ class _PlayScreenState extends State<PlayScreen> with WidgetsBindingObserver {
       );
     }
 
-    return Text(
-      _scrambled.split('').join(' '),
-      style: theme.textTheme.headlineMedium,
-      textAlign: TextAlign.center,
+    // Read out as whole words the letters are spaced for sighted players,
+    // which a screen reader would otherwise run together.
+    return Semantics(
+      label: 'Scrambled letters: ${_scrambled.split('').join(', ')}',
+      excludeSemantics: true,
+      child: Text(
+        _scrambled.split('').join(' '),
+        style: theme.textTheme.headlineMedium,
+        textAlign: TextAlign.center,
+      ),
     );
   }
 

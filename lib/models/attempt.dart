@@ -5,6 +5,7 @@ class Attempt {
     required this.status,
     this.wrongGuesses = 0,
     this.hintsUsed = 0,
+    this.hintKinds,
     this.elapsedSeconds = 0,
     this.lastGuess,
     this.userNote,
@@ -21,6 +22,7 @@ class Attempt {
       status: map['status'] as String,
       wrongGuesses: map['wrong_guesses'] as int,
       hintsUsed: map['hints_used'] as int,
+      hintKinds: map['hint_kinds'] as String?,
       elapsedSeconds: map['elapsed_seconds'] as int,
       lastGuess: map['last_guess'] as String?,
       userNote: map['user_note'] as String?,
@@ -38,6 +40,11 @@ class Attempt {
   final String status;
   final int wrongGuesses;
   final int hintsUsed;
+
+  /// Which hint kinds the player accepted, as stored by the hint rules.
+  /// Null on rows written before the column existed: the count is then all
+  /// that is known about them.
+  final String? hintKinds;
   final int elapsedSeconds;
   final String? lastGuess;
   final String? userNote;
@@ -51,6 +58,7 @@ class Attempt {
       'status': status,
       'wrong_guesses': wrongGuesses,
       'hints_used': hintsUsed,
+      'hint_kinds': hintKinds,
       'elapsed_seconds': elapsedSeconds,
       'last_guess': lastGuess,
       'user_note': userNote,

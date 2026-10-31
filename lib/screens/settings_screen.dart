@@ -67,6 +67,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               divisions:
                   (maxHintThresholdSeconds - minHintThresholdSeconds) ~/ 5,
               label: '${threshold.round()} seconds',
+              semanticFormatterCallback: (value) => '${value.round()} seconds',
               onChanged: (value) => setState(() => _draggedThreshold = value),
               onChangeEnd: (value) {
                 setState(() => _draggedThreshold = null);

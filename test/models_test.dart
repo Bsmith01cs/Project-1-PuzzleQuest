@@ -52,6 +52,7 @@ void main() {
       status: 'solved',
       wrongGuesses: 2,
       hintsUsed: 1,
+      hintKinds: 'clue',
       elapsedSeconds: 95,
       lastGuess: 'FLUTTER',
       userNote: 'Tricky one',
@@ -66,6 +67,7 @@ void main() {
         'status': 'solved',
         'wrong_guesses': 2,
         'hints_used': 1,
+        'hint_kinds': 'clue',
         'elapsed_seconds': 95,
         'last_guess': 'FLUTTER',
         'user_note': 'Tricky one',
@@ -88,6 +90,7 @@ void main() {
       expect(started.wrongGuesses, 0);
       expect(started.hintsUsed, 0);
       expect(started.elapsedSeconds, 0);
+      expect(started.toMap()['hint_kinds'], isNull);
       expect(started.toMap()['last_guess'], isNull);
       expect(started.toMap()['user_note'], isNull);
       expect(started.toMap()['finished_at'], isNull);

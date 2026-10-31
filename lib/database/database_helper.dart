@@ -7,7 +7,7 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._();
 
   static const _fileName = 'puzzle_quest.db';
-  static const _version = 1;
+  static const _version = 2;
 
   Database? _database;
 
@@ -23,6 +23,7 @@ class DatabaseHelper {
       version: _version,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: _createTables,
+      onUpgrade: _upgradeTables,
     );
   }
 
@@ -46,6 +47,7 @@ class DatabaseHelper {
         status TEXT NOT NULL,
         wrong_guesses INTEGER NOT NULL DEFAULT 0,
         hints_used INTEGER NOT NULL DEFAULT 0,
+        hint_kinds TEXT,
         elapsed_seconds INTEGER NOT NULL DEFAULT 0,
         last_guess TEXT,
         user_note TEXT,
@@ -58,6 +60,18 @@ class DatabaseHelper {
     await db.execute(
       'CREATE INDEX idx_attempts_puzzle_id ON attempts (puzzle_id)',
     );
+  }
+
+  // Every upgrade adds to the stored data; no attempt or puzzle row is
+  // rewritten or dropped.
+  Future<void> _upgradeTables(
+    Database db,
+    int oldVersion,
+    int newVersion,
+  ) async {
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE attempts ADD COLUMN hint_kinds TEXT');
+    }
   }
 
   Future<void> close() async {

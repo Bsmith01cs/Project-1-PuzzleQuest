@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
 
 import '../models/puzzle.dart';
+import '../repositories/attempt_repository.dart';
 import '../repositories/puzzle_repository.dart';
 import '../settings/settings_controller.dart';
 import 'editor_screen.dart';
 import 'play_screen.dart';
 
 class CatalogScreen extends StatefulWidget {
-  const CatalogScreen({super.key, this.repository, this.settings});
+  const CatalogScreen({
+    super.key,
+    this.repository,
+    this.attempts,
+    this.settings,
+  });
 
   final PuzzleRepository? repository;
+  final AttemptRepository? attempts;
   final SettingsController? settings;
 
   @override
@@ -79,11 +86,13 @@ class _CatalogScreenState extends State<CatalogScreen> {
   }
 
   void _openPlay(Puzzle puzzle) {
-    Navigator.of(
-      context,
-    ).push(
+    Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => PlayScreen(puzzle: puzzle, settings: widget.settings),
+        builder: (_) => PlayScreen(
+          puzzle: puzzle,
+          attempts: widget.attempts,
+          settings: widget.settings,
+        ),
       ),
     );
   }
@@ -127,9 +136,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -142,13 +150,17 @@ class _CatalogScreenState extends State<CatalogScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
+          // Stacks instead of overflowing once the count and the button no
+          // longer fit side by side, which they do not at large text sizes.
+          OverflowBar(
+            alignment: MainAxisAlignment.spaceBetween,
+            overflowAlignment: OverflowBarAlignment.start,
+            spacing: 12,
+            overflowSpacing: 8,
             children: [
-              Expanded(
-                child: Text(
-                  _countLabel(visible.length),
-                  style: theme.textTheme.titleMedium,
-                ),
+              Text(
+                _countLabel(visible.length),
+                style: theme.textTheme.titleMedium,
               ),
               FilledButton.icon(
                 onPressed: _loading ? null : () => _openEditor(),
@@ -255,12 +267,14 @@ class _CatalogScreenState extends State<CatalogScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  tooltip: 'Edit',
+                  // Names the puzzle so a screen reader can tell the rows
+                  // apart. The clue, never the answer.
+                  tooltip: 'Edit ${puzzle.clue}',
                   icon: const Icon(Icons.edit_outlined),
                   onPressed: () => _openEditor(puzzle),
                 ),
                 IconButton(
-                  tooltip: 'Delete',
+                  tooltip: 'Delete ${puzzle.clue}',
                   icon: const Icon(Icons.delete_outline),
                   onPressed: () => _confirmDelete(puzzle),
                 ),

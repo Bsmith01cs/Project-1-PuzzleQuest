@@ -53,6 +53,7 @@ class _HomeShellState extends State<HomeShell> {
         children: [
           CatalogScreen(
             repository: widget.puzzleRepository,
+            attempts: widget.attemptRepository,
             settings: _settings,
           ),
           HistoryScreen(

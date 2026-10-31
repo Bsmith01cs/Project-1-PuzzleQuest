@@ -84,6 +84,37 @@ HintSuggestion? suggestHint({
   );
 }
 
+/// The stored form of the hints a player has accepted. A bare count cannot
+/// say which hint was shown, so the kinds are persisted beside it and the
+/// order is fixed to keep the column stable across sessions.
+String? encodeHintKinds(Set<HintKind> kinds) {
+  if (kinds.isEmpty) {
+    return null;
+  }
+  return HintKind.values
+      .where(kinds.contains)
+      .map((kind) => kind.name)
+      .join(',');
+}
+
+/// Reads back [encodeHintKinds]. Unknown or blank tokens are dropped, so a
+/// corrupted column degrades to "nothing revealed" rather than throwing.
+Set<HintKind> decodeHintKinds(String? stored) {
+  if (stored == null || stored.trim().isEmpty) {
+    return {};
+  }
+
+  final byName = {for (final kind in HintKind.values) kind.name: kind};
+  final kinds = <HintKind>{};
+  for (final token in stored.split(',')) {
+    final kind = byName[token.trim()];
+    if (kind != null) {
+      kinds.add(kind);
+    }
+  }
+  return kinds;
+}
+
 /// The fixed-rule baseline HintCoach is measured against: the clue after the
 /// first wrong guess, with no regard for time or answer length.
 HintSuggestion? suggestBaselineHint({required int wrongGuesses}) {

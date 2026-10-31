@@ -53,28 +53,37 @@ second threshold fires at exactly 60 seconds, not 61.
   and only for answers of five letters or more.
 - The clue is **never printed twice**. It is already at the top of the Play
   screen, so a clue hint points back at it instead of repeating it.
-- Each hint kind is offered **once per session of an attempt**. Revealing or
-  declining it removes the offer, so repeated wrong guesses cannot re-raise the
-  same hint or inflate the stored count. A restart is the one exception, and it
-  cannot inflate the count either — see [Limitations](#limitations).
+- Each hint kind is offered **once per attempt**, restarts included. Revealing
+  or declining it removes the offer, and the kinds revealed are stored with the
+  attempt, so reopening a puzzle cannot re-raise a hint the player has already
+  seen or inflate the stored count. Declining is not stored: a hint turned down
+  with **Not now** is offered again next time the puzzle is opened.
 
 ## Persistence
 
-An accepted hint increments the attempt's `hints_used` column through the
-existing `AttemptRepository` (no schema change — the column has existed since
-Step 3). Resetting an attempt returns the count to zero.
+An accepted hint is written to the attempt through the existing
+`AttemptRepository`. Two columns carry it:
 
-Reopening an unfinished attempt restores the stored count, clamped to the
-0–2 range that the two hint kinds make possible, so a corrupt or negative
-value cannot carry forward. Within a session the count is the number of
-distinct kinds revealed; across a restart the restored count acts as a floor:
+| Column | Holds |
+| --- | --- |
+| `attempts.hints_used` | How many hints the player accepted (0–2) |
+| `attempts.hint_kinds` | Which ones, as a fixed-order token list (`clue`, `firstLetter`) |
+
+`hint_kinds` was added in **database version 2**. The upgrade is a single
+`ALTER TABLE attempts ADD COLUMN hint_kinds TEXT` in `DatabaseHelper`, so every
+stored puzzle, attempt, note and count survives it untouched; rows written
+before the upgrade simply read back as `NULL`.
+
+Reopening an unfinished attempt restores both: the kinds decide what is already
+revealed and therefore never offered again, and the count is restored clamped to
+the 0–2 range the two hint kinds make possible, so a corrupt or negative value
+cannot carry forward. A corrupt or unrecognised token list reads as nothing
+revealed rather than throwing. The count written back is
 
     hintsUsed = max(restoredCount, distinctKindsRevealedThisSession)
 
-The column stores a count, never which kinds produced it, so this is the
-strongest guarantee available without a schema change. It means a hint can
-never be counted twice — the known cost is described under
-[Limitations](#limitations).
+where the floor only matters for a row stored before `hint_kinds` existed.
+Resetting an attempt clears both columns.
 
 ## Baseline
 
@@ -85,16 +94,19 @@ extra conditions measurable.
 
 ## Evaluation
 
-> **Status: expected outcomes, not executed.** The Step 9 instructions
-> prohibited running Flutter commands, so `flutter test` has not been run
-> against these cases. Every result below is the outcome the implemented rules
-> are expected to produce, derived from the code, and each has a corresponding
-> test in `test/hint_coach_test.dart` awaiting execution. The earlier steps'
-> suites were executed and passed; this step's have not.
+> **Status: verified by executed tests (31 October 2026).** Every case below
+> has a test in `test/hint_coach_test.dart`, and the whole suite was run with
+> `flutter test` on Flutter 3.47.5: **192 tests passed, 0 failed**, with
+> `flutter analyze` reporting no issues. The HintCoach file alone contributes
+> 54 of those tests. The HintCoach-versus-baseline columns are the rules'
+> actual outputs as asserted by those tests, not projections.
+>
+> **Not verified:** no peer or user testing has been carried out, so no
+> observation about how real players experience the hints is recorded here.
 
 Threshold is 60 seconds unless stated otherwise.
 
-| # | Case | Inputs | HintCoach (expected) | Baseline (expected) | Why it matters |
+| # | Case | Inputs | HintCoach | Baseline | Why it matters |
 | --- | --- | --- | --- | --- | --- |
 | 1 | Normal gameplay | 1 wrong guess, 10 s, 7 letters | Clue | Clue | Both agree on the common case |
 | 1b | Normal gameplay, escalated | 2 wrong guesses, 61 s, 7 letters | First letter | Clue | HintCoach escalates when the player is genuinely stuck |
@@ -109,7 +121,7 @@ Threshold is 60 seconds unless stated otherwise.
 | 5 | Four-letter counterexample | 4 wrong guesses, 300 s, 4 letters | Clue | Clue | One letter of a four-letter answer gives away too much |
 | 5b | Five-letter boundary | 2 wrong guesses, 60 s, 5 letters | First letter | Clue | Five letters is the shortest answer that qualifies |
 
-### Expected comparison
+### Comparison
 
 - **Agreement:** cases 1, 2, 5 — HintCoach matches the baseline where the
   baseline is already right.
@@ -123,6 +135,22 @@ Threshold is 60 seconds unless stated otherwise.
   it withholds the letter for short answers and before the threshold, where the
   baseline would already be offering its only hint.
 
+### Verified on a device
+
+Run on a Medium Phone AVD, Android 17 (API 37), from the Android debug build,
+with the network off (airplane mode) throughout the database checks:
+
+| Check | Result |
+| --- | --- |
+| One wrong guess offers the clue with its explanation and Reveal / Not now | As specified |
+| Reveal shows the hint and the screen reads `Hints used 1` | As specified |
+| Stored row after revealing | `hints_used = 1`, `hint_kinds = clue` |
+| Reopening the puzzle after closing the app | Resumed paused, clock unchanged at 00:18, wrong guesses and last guess restored, the revealed hint shown again |
+| Resuming that restored attempt | No second offer; row still `hints_used = 1`, `hint_kinds = clue` |
+| Upgrade from a version 1 database holding two attempts and a note | `user_version` 1 → 2, `hint_kinds` added, all rows and the note preserved |
+| Deleting a puzzle with two attempts | Both attempt rows removed by `ON DELETE CASCADE` |
+| History, statistics and notes with the network off | Unchanged |
+
 ### Trade-offs
 
 - The threshold is player-controlled, so two players can see different hints for
@@ -132,19 +160,22 @@ Threshold is 60 seconds unless stated otherwise.
 
 ## Limitations
 
-**Restored hints can be offered again.** `attempts.hints_used` stores a count,
-not which kinds were revealed. After a restart HintCoach therefore cannot tell
-whether the restored hint was the clue or the first letter, and a kind the
-player has already seen may be offered once more. Nothing is revealed without
-the player accepting it, so this costs a redundant offer, not a leak.
+**Attempts stored before database version 2 name no hint kinds.** A row written
+by an earlier build carries a count without the kinds behind it, so for that one
+attempt HintCoach still cannot tell whether the hint already seen was the clue
+or the first letter. For those rows only, a kind already seen may be offered
+once more, and a second kind revealed after the restart is not added to the
+count — the restored count acts as a floor instead. Nothing is ever revealed
+without the player accepting it, so the cost is a redundant offer, never a leak,
+and the total can never exceed the two kinds that exist. Every attempt created
+or updated since the upgrade stores its kinds and is exact.
 
-**A second kind after a restart is not added to the count.** Because the
-restored count acts as a floor, a player who revealed the clue before a restart
-and the first letter after it is recorded as having used one hint, not two. The
-alternative — adding the two together — would count the same hint twice for a
-player who simply re-reveals what they already saw. Under-counting was chosen
-over double-counting, and the total can never exceed the two kinds that exist.
+**Device verification covered one emulator.** The migration, cascade deletion,
+offline use and restart recovery were exercised on a Medium Phone AVD running
+Android 17 (API 37). The second available AVD (Pixel 7) could not be used: its
+data partition was 91% full and the install failed with
+`INSTALL_FAILED_INSUFFICIENT_STORAGE`, and clearing it would have removed other
+coursework apps. No physical device was tested.
 
-Recording the kinds exactly would need a second column or an encoded value in
-`hints_used`, both of which are schema or semantic changes that Step 9 rules
-out.
+**No peer testing.** Nothing in this document reports how anyone other than the
+developer experienced the feature.

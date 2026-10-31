@@ -50,10 +50,14 @@ Puzzle buildPuzzle({String answer = 'FLUTTER'}) {
   );
 }
 
+/// A paused attempt waiting to be restored. [hintKinds] left null stands for
+/// a row written before the column existed, which stores a count alone.
 Attempt buildSavedAttempt({
   int hintsUsed = 1,
   int wrongGuesses = 1,
   int elapsedSeconds = 10,
+  String? hintKinds,
+  String? userNote,
 }) {
   return Attempt(
     id: 7,
@@ -61,7 +65,9 @@ Attempt buildSavedAttempt({
     status: Attempt.statusPaused,
     wrongGuesses: wrongGuesses,
     hintsUsed: hintsUsed,
+    hintKinds: hintKinds,
     elapsedSeconds: elapsedSeconds,
+    userNote: userNote,
     startedAt: DateTime.utc(2026, 3, 1, 10),
   );
 }
@@ -291,11 +297,7 @@ void main() {
 
     test('sound counters report no problem', () {
       expect(
-        validateHintInputs(
-          wrongGuesses: 0,
-          elapsedSeconds: 0,
-          answerLength: 1,
-        ),
+        validateHintInputs(wrongGuesses: 0, elapsedSeconds: 0, answerLength: 1),
         isNull,
       );
       expect(
@@ -647,10 +649,7 @@ void main() {
 
       await tester.pump(const Duration(seconds: 30));
 
-      expect(
-        find.textContaining('longer than four letters'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('longer than four letters'), findsOneWidget);
 
       await tapVisible(tester, find.widgetWithText(FilledButton, 'Reveal'));
       await flushWrites(tester);
@@ -762,7 +761,7 @@ void main() {
   });
 
   group('restored hint usage', () {
-    testWidgets('a restored count is shown and not revealed automatically', (
+    testWidgets('a legacy count is shown and not revealed automatically', (
       tester,
     ) async {
       final attempts = FakeAttemptRepository(
@@ -782,9 +781,7 @@ void main() {
       settings.dispose();
     });
 
-    testWidgets('a restored count is not counted a second time', (
-      tester,
-    ) async {
+    testWidgets('a legacy count is not counted a second time', (tester) async {
       final attempts = FakeAttemptRepository(
         existing: buildSavedAttempt(hintsUsed: 1, wrongGuesses: 1),
       );
@@ -810,12 +807,12 @@ void main() {
       settings.dispose();
     });
 
-    testWidgets('a second kind after a restart keeps the documented floor', (
+    testWidgets('a second kind after a legacy restart keeps the floor', (
       tester,
     ) async {
-      // With only a count stored, the kind behind a restored hint is unknown,
-      // so the total stays at the restored floor rather than risking a
-      // double count. This is the documented limitation in AI_FEATURE.md.
+      // A row written before hint kinds were stored names no kind, so the
+      // total stays at the restored floor rather than risking a double
+      // count. This is the documented limitation in AI_FEATURE.md.
       final attempts = FakeAttemptRepository(
         existing: buildSavedAttempt(
           hintsUsed: 1,
@@ -902,6 +899,238 @@ void main() {
       );
       expect(find.text('Hint available'), findsNothing);
       expect(find.widgetWithText(FilledButton, 'Reveal'), findsNothing);
+
+      await tapVisible(tester, find.widgetWithText(OutlinedButton, 'Reset'));
+      await flushWrites(tester);
+      settings.dispose();
+    });
+  });
+
+  group('stored hint kinds', () {
+    test('an empty set is stored as nothing at all', () {
+      expect(encodeHintKinds({}), isNull);
+    });
+
+    test('kinds survive a round trip', () {
+      for (final kinds in [
+        {HintKind.clue},
+        {HintKind.firstLetter},
+        {HintKind.clue, HintKind.firstLetter},
+      ]) {
+        expect(decodeHintKinds(encodeHintKinds(kinds)), kinds);
+      }
+    });
+
+    test('the stored order is fixed, whatever order they were revealed in', () {
+      expect(
+        encodeHintKinds({HintKind.firstLetter, HintKind.clue}),
+        encodeHintKinds({HintKind.clue, HintKind.firstLetter}),
+      );
+    });
+
+    test('a missing or blank column reads as nothing revealed', () {
+      expect(decodeHintKinds(null), isEmpty);
+      expect(decodeHintKinds(''), isEmpty);
+      expect(decodeHintKinds('   '), isEmpty);
+      expect(decodeHintKinds(','), isEmpty);
+    });
+
+    test('unknown tokens are dropped instead of throwing', () {
+      expect(decodeHintKinds('nonsense'), isEmpty);
+      expect(decodeHintKinds('clue,nonsense'), {HintKind.clue});
+    });
+
+    test('surrounding whitespace is tolerated', () {
+      expect(decodeHintKinds(' clue , firstLetter '), {
+        HintKind.clue,
+        HintKind.firstLetter,
+      });
+    });
+
+    test('a row stored before the column existed reads as no kinds', () {
+      final legacy = Attempt.fromMap({
+        'id': 3,
+        'puzzle_id': 1,
+        'status': Attempt.statusPaused,
+        'wrong_guesses': 1,
+        'hints_used': 1,
+        'elapsed_seconds': 12,
+        'last_guess': null,
+        'user_note': null,
+        'started_at': DateTime.utc(2026, 3, 1).toIso8601String(),
+        'finished_at': null,
+      });
+
+      expect(legacy.hintKinds, isNull);
+      expect(legacy.hintsUsed, 1);
+    });
+  });
+
+  group('hint kinds across a restart', () {
+    testWidgets('a hint already revealed is shown again, never re-offered', (
+      tester,
+    ) async {
+      final attempts = FakeAttemptRepository(
+        existing: buildSavedAttempt(
+          hintsUsed: 1,
+          wrongGuesses: 1,
+          hintKinds: 'clue',
+        ),
+      );
+      final settings = await controllerWithThreshold(60);
+
+      await tester.pumpWidget(
+        wrapPlay(buildPuzzle(), attempts: attempts, settings: settings),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Hint'), findsOneWidget);
+      expect(find.text('Read the clue above once more.'), findsOneWidget);
+      expect(find.text('Hints used 1'), findsOneWidget);
+
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Resume'));
+      await flushWrites(tester);
+
+      expect(find.text('Hint available'), findsNothing);
+      expect(find.widgetWithText(FilledButton, 'Reveal'), findsNothing);
+      expect(attempts.lastWrite.hintsUsed, 1);
+      expect(attempts.lastWrite.hintKinds, 'clue');
+
+      await tapVisible(tester, find.widgetWithText(OutlinedButton, 'Reset'));
+      await flushWrites(tester);
+      settings.dispose();
+    });
+
+    testWidgets('a second kind after a restart is counted exactly once', (
+      tester,
+    ) async {
+      final attempts = FakeAttemptRepository(
+        existing: buildSavedAttempt(
+          hintsUsed: 1,
+          wrongGuesses: 2,
+          elapsedSeconds: 30,
+          hintKinds: 'clue',
+        ),
+      );
+      final settings = await controllerWithThreshold(30);
+
+      await tester.pumpWidget(
+        wrapPlay(buildPuzzle(), attempts: attempts, settings: settings),
+      );
+      await tester.pumpAndSettle();
+
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Resume'));
+      await flushWrites(tester);
+
+      expect(find.textContaining('longer than four letters'), findsOneWidget);
+
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Reveal'));
+      await flushWrites(tester);
+
+      expect(find.text('The answer starts with "F".'), findsOneWidget);
+      expect(find.text('Hints used 2'), findsOneWidget);
+      expect(attempts.lastWrite.hintsUsed, 2);
+      expect(attempts.lastWrite.hintKinds, 'clue,firstLetter');
+
+      await tapVisible(tester, find.widgetWithText(OutlinedButton, 'Reset'));
+      await flushWrites(tester);
+      settings.dispose();
+    });
+
+    testWidgets('both kinds restored leave nothing to offer', (tester) async {
+      final attempts = FakeAttemptRepository(
+        existing: buildSavedAttempt(
+          hintsUsed: 2,
+          wrongGuesses: 3,
+          elapsedSeconds: 90,
+          hintKinds: 'clue,firstLetter',
+        ),
+      );
+      final settings = await controllerWithThreshold(30);
+
+      await tester.pumpWidget(
+        wrapPlay(buildPuzzle(), attempts: attempts, settings: settings),
+      );
+      await tester.pumpAndSettle();
+
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Resume'));
+      await flushWrites(tester);
+
+      expect(find.text('Hints used 2'), findsOneWidget);
+      expect(find.text('Hint available'), findsNothing);
+      expect(attempts.lastWrite.hintsUsed, 2);
+
+      await tapVisible(tester, find.widgetWithText(OutlinedButton, 'Reset'));
+      await flushWrites(tester);
+      settings.dispose();
+    });
+
+    testWidgets('a corrupted column reveals nothing and keeps the count', (
+      tester,
+    ) async {
+      final attempts = FakeAttemptRepository(
+        existing: buildSavedAttempt(hintsUsed: 1, hintKinds: 'garbage'),
+      );
+      final settings = await controllerWithThreshold(60);
+
+      await tester.pumpWidget(
+        wrapPlay(buildPuzzle(), attempts: attempts, settings: settings),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Hint'), findsNothing);
+      expect(find.text('Hints used 1'), findsOneWidget);
+
+      settings.dispose();
+    });
+
+    testWidgets('resetting clears the stored kinds', (tester) async {
+      final attempts = FakeAttemptRepository(
+        existing: buildSavedAttempt(
+          hintsUsed: 1,
+          wrongGuesses: 1,
+          hintKinds: 'clue',
+        ),
+      );
+      final settings = await controllerWithThreshold(60);
+
+      await tester.pumpWidget(
+        wrapPlay(buildPuzzle(), attempts: attempts, settings: settings),
+      );
+      await tester.pumpAndSettle();
+
+      await tapVisible(tester, find.widgetWithText(OutlinedButton, 'Reset'));
+      await flushWrites(tester);
+
+      expect(find.text('Hint'), findsNothing);
+      expect(find.textContaining('Hints used'), findsNothing);
+      expect(attempts.lastWrite.hintsUsed, 0);
+      expect(attempts.lastWrite.hintKinds, isNull);
+
+      settings.dispose();
+    });
+
+    testWidgets('gameplay saves keep a note written in History', (
+      tester,
+    ) async {
+      final attempts = FakeAttemptRepository(
+        existing: buildSavedAttempt(
+          hintsUsed: 0,
+          wrongGuesses: 1,
+          userNote: 'Nearly had it',
+        ),
+      );
+      final settings = await controllerWithThreshold(60);
+
+      await tester.pumpWidget(
+        wrapPlay(buildPuzzle(), attempts: attempts, settings: settings),
+      );
+      await tester.pumpAndSettle();
+
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Resume'));
+      await flushWrites(tester);
+
+      expect(attempts.lastWrite.userNote, 'Nearly had it');
 
       await tapVisible(tester, find.widgetWithText(OutlinedButton, 'Reset'));
       await flushWrites(tester);
