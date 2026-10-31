@@ -29,6 +29,10 @@ class Attempt {
     );
   }
 
+  static const statusInProgress = 'in_progress';
+  static const statusPaused = 'paused';
+  static const statusSolved = 'solved';
+
   final int? id;
   final int puzzleId;
   final String status;

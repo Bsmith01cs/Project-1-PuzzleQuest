@@ -25,6 +25,18 @@ class AttemptRepository {
     return rows.map(Attempt.fromMap).toList();
   }
 
+  Future<Attempt?> findLatestUnfinished(int puzzleId) async {
+    final db = await _helper.database;
+    final rows = await db.query(
+      'attempts',
+      where: 'puzzle_id = ? AND finished_at IS NULL AND status != ?',
+      whereArgs: [puzzleId, Attempt.statusSolved],
+      orderBy: 'started_at DESC',
+      limit: 1,
+    );
+    return rows.isEmpty ? null : Attempt.fromMap(rows.first);
+  }
+
   Future<Attempt?> findById(int id) async {
     final db = await _helper.database;
     final rows = await db.query(
