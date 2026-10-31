@@ -105,6 +105,14 @@ Future<void> flushWrites(WidgetTester tester) async {
   await tester.pump();
 }
 
+// Scrolls a control into view first: a hint card can make the Play layout
+// taller than the test viewport.
+Future<void> tapVisible(WidgetTester tester, Finder finder) async {
+  await tester.ensureVisible(finder);
+  await tester.pump();
+  await tester.tap(finder);
+}
+
 // The State class is private, so the lifecycle callback is invoked the way the
 // framework would invoke it on the registered observer.
 void sendLifecycleState(WidgetTester tester, AppLifecycleState state) {
@@ -192,12 +200,12 @@ void main() {
       await tester.pumpWidget(wrapPlay(buildPuzzle(), random: Random(7)));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Start'));
       await tester.pump();
 
       await tester.enterText(find.byType(TextField), '  flutter  ');
       await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, 'Check'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Check'));
       await tester.pump();
 
       expect(find.text('Solved!'), findsOneWidget);
@@ -212,12 +220,12 @@ void main() {
       await tester.pumpWidget(wrapPlay(buildPuzzle(), random: Random(7)));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Start'));
       await tester.pump();
 
       await tester.enterText(find.byType(TextField), 'WRONG');
       await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, 'Check'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Check'));
       await tester.pump();
 
       expect(find.text('Not quite. Try again.'), findsOneWidget);
@@ -228,7 +236,7 @@ void main() {
         isEmpty,
       );
 
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Reset'));
+      await tapVisible(tester, find.widgetWithText(OutlinedButton, 'Reset'));
       await tester.pump();
     });
 
@@ -238,7 +246,7 @@ void main() {
 
       expect(find.textContaining('Time 00:00'), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Start'));
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
       await tester.pump(const Duration(seconds: 1));
@@ -246,7 +254,7 @@ void main() {
 
       expect(find.textContaining('Time 00:03'), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Reset'));
+      await tapVisible(tester, find.widgetWithText(OutlinedButton, 'Reset'));
       await tester.pump();
     });
 
@@ -258,23 +266,23 @@ void main() {
       await tester.pumpWidget(wrapPlay(buildPuzzle(), random: Random(7)));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Start'));
       await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, 'Pause'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Pause'));
       await tester.pump();
 
       expect(find.text('Paused'), findsOneWidget);
       expect(find.text(expected.split('').join(' ')), findsNothing);
       expect(tester.widget<TextField>(find.byType(TextField)).enabled, isFalse);
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Resume'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Resume'));
       await tester.pump();
 
       expect(find.text('Paused'), findsNothing);
       expect(find.text(expected.split('').join(' ')), findsOneWidget);
       expect(tester.widget<TextField>(find.byType(TextField)).enabled, isTrue);
 
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Reset'));
+      await tapVisible(tester, find.widgetWithText(OutlinedButton, 'Reset'));
       await tester.pump();
     });
 
@@ -282,17 +290,17 @@ void main() {
       await tester.pumpWidget(wrapPlay(buildPuzzle(), random: Random(7)));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Start'));
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
-      await tester.tap(find.widgetWithText(FilledButton, 'Pause'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Pause'));
       await tester.pump();
 
       await tester.pump(const Duration(seconds: 5));
 
       expect(find.textContaining('Time 00:01'), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Reset'));
+      await tapVisible(tester, find.widgetWithText(OutlinedButton, 'Reset'));
       await tester.pump();
     });
 
@@ -300,16 +308,16 @@ void main() {
       await tester.pumpWidget(wrapPlay(buildPuzzle(), random: Random(7)));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Start'));
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
 
       await tester.enterText(find.byType(TextField), 'WRONG');
       await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, 'Check'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Check'));
       await tester.pump();
 
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Reset'));
+      await tapVisible(tester, find.widgetWithText(OutlinedButton, 'Reset'));
       await tester.pump();
 
       expect(find.textContaining('Time 00:00'), findsOneWidget);
@@ -333,7 +341,7 @@ void main() {
 
       expect(attempts.inserted, isEmpty);
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Start'));
       await flushWrites(tester);
 
       expect(attempts.inserted, hasLength(1));
@@ -347,7 +355,7 @@ void main() {
       expect(attempt.lastGuess, isNull);
       expect(attempt.finishedAt, isNull);
 
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Reset'));
+      await tapVisible(tester, find.widgetWithText(OutlinedButton, 'Reset'));
       await flushWrites(tester);
     });
 
@@ -361,14 +369,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Start'));
       await flushWrites(tester);
       await tester.pump(const Duration(seconds: 1));
       await tester.pump(const Duration(seconds: 1));
 
       await tester.enterText(find.byType(TextField), 'wrongly');
       await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, 'Check'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Check'));
       await flushWrites(tester);
 
       expect(attempts.inserted, hasLength(1));
@@ -382,7 +390,7 @@ void main() {
       expect(saved.elapsedSeconds, 2);
       expect(saved.finishedAt, isNull);
 
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Reset'));
+      await tapVisible(tester, find.widgetWithText(OutlinedButton, 'Reset'));
       await flushWrites(tester);
     });
 
@@ -396,20 +404,20 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Start'));
       await flushWrites(tester);
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Pause'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Pause'));
       await flushWrites(tester);
       expect(attempts.lastWrite.status, Attempt.statusPaused);
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Resume'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Resume'));
       await flushWrites(tester);
       expect(attempts.lastWrite.status, Attempt.statusInProgress);
 
       expect(attempts.inserted, hasLength(1));
 
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Reset'));
+      await tapVisible(tester, find.widgetWithText(OutlinedButton, 'Reset'));
       await flushWrites(tester);
     });
 
@@ -421,7 +429,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Start'));
       await flushWrites(tester);
       await tester.pump(const Duration(seconds: 1));
       await tester.pump(const Duration(seconds: 1));
@@ -429,7 +437,7 @@ void main() {
 
       await tester.enterText(find.byType(TextField), 'flutter');
       await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, 'Check'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Check'));
       await flushWrites(tester);
 
       expect(attempts.inserted, hasLength(1));
@@ -453,13 +461,13 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Start'));
       await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, 'Pause'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Pause'));
       await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, 'Resume'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Resume'));
       await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, 'Pause'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Pause'));
       await flushWrites(tester);
 
       expect(attempts.inserted, hasLength(1));
@@ -481,17 +489,17 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Start'));
       await flushWrites(tester);
       await tester.pump(const Duration(seconds: 1));
       await tester.pump(const Duration(seconds: 1));
 
       await tester.enterText(find.byType(TextField), 'WRONG');
       await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, 'Check'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Check'));
       await flushWrites(tester);
 
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Reset'));
+      await tapVisible(tester, find.widgetWithText(OutlinedButton, 'Reset'));
       await flushWrites(tester);
 
       expect(attempts.inserted, hasLength(1));
@@ -511,29 +519,29 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Start'));
       await flushWrites(tester);
 
       await tester.enterText(find.byType(TextField), 'FLUTTER');
       await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, 'Check'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Check'));
       await flushWrites(tester);
 
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Play again'));
+      await tapVisible(tester, find.widgetWithText(OutlinedButton, 'Play again'));
       await flushWrites(tester);
 
       expect(attempts.updated, hasLength(1));
       expect(attempts.updated.single.status, Attempt.statusSolved);
       expect(attempts.inserted, hasLength(1));
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Start'));
       await flushWrites(tester);
 
       expect(attempts.inserted, hasLength(2));
       expect(attempts.inserted.last.status, Attempt.statusInProgress);
       expect(attempts.inserted.last.elapsedSeconds, 0);
 
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Reset'));
+      await tapVisible(tester, find.widgetWithText(OutlinedButton, 'Reset'));
       await flushWrites(tester);
     });
 
@@ -564,7 +572,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Start'));
       await flushWrites(tester);
 
       expect(tester.takeException(), isNull);
@@ -574,7 +582,7 @@ void main() {
       );
       expect(find.widgetWithText(FilledButton, 'Pause'), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Reset'));
+      await tapVisible(tester, find.widgetWithText(OutlinedButton, 'Reset'));
       await flushWrites(tester);
     });
   });
@@ -628,7 +636,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Resume'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Resume'));
       await flushWrites(tester);
 
       expect(attempts.inserted, isEmpty);
@@ -641,7 +649,7 @@ void main() {
       expect(saved.wrongGuesses, 2);
       expect(saved.startedAt, DateTime.utc(2026, 3, 1, 10));
 
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Reset'));
+      await tapVisible(tester, find.widgetWithText(OutlinedButton, 'Reset'));
       await flushWrites(tester);
     });
 
@@ -665,13 +673,13 @@ void main() {
       expect(find.widgetWithText(FilledButton, 'Start'), findsOneWidget);
       expect(find.text('Resumed your unfinished attempt.'), findsNothing);
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Start'));
       await flushWrites(tester);
 
       expect(attempts.inserted, isEmpty);
       expect(attempts.updated.single.id, 7);
 
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Reset'));
+      await tapVisible(tester, find.widgetWithText(OutlinedButton, 'Reset'));
       await flushWrites(tester);
     });
   });
@@ -685,7 +693,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Start'));
       await flushWrites(tester);
       await tester.pump(const Duration(seconds: 1));
       await tester.pump(const Duration(seconds: 1));
@@ -710,7 +718,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Start'));
       await flushWrites(tester);
 
       sendLifecycleState(tester, AppLifecycleState.inactive);
@@ -732,9 +740,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Start'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Start'));
       await flushWrites(tester);
-      await tester.tap(find.widgetWithText(FilledButton, 'Pause'));
+      await tapVisible(tester, find.widgetWithText(FilledButton, 'Pause'));
       await flushWrites(tester);
 
       final writesSoFar = attempts.updated.length;

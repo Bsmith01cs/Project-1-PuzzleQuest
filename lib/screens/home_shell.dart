@@ -51,7 +51,10 @@ class _HomeShellState extends State<HomeShell> {
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          CatalogScreen(repository: widget.puzzleRepository),
+          CatalogScreen(
+            repository: widget.puzzleRepository,
+            settings: _settings,
+          ),
           HistoryScreen(
             key: ValueKey(_historyVisit),
             attempts: widget.attemptRepository,

@@ -3,9 +3,11 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../hints/hint_coach.dart';
 import '../models/attempt.dart';
 import '../models/puzzle.dart';
 import '../repositories/attempt_repository.dart';
+import '../settings/settings_controller.dart';
 
 enum GameStatus { ready, running, paused, solved }
 
@@ -31,11 +33,18 @@ String formatElapsed(int seconds) {
 }
 
 class PlayScreen extends StatefulWidget {
-  const PlayScreen({super.key, this.puzzle, this.random, this.attempts});
+  const PlayScreen({
+    super.key,
+    this.puzzle,
+    this.random,
+    this.attempts,
+    this.settings,
+  });
 
   final Puzzle? puzzle;
   final Random? random;
   final AttemptRepository? attempts;
+  final SettingsController? settings;
 
   @override
   State<PlayScreen> createState() => _PlayScreenState();
@@ -46,6 +55,8 @@ class _PlayScreenState extends State<PlayScreen> with WidgetsBindingObserver {
 
   late final AttemptRepository _attempts =
       widget.attempts ?? AttemptRepository();
+  late final SettingsController _settings =
+      widget.settings ?? SettingsController();
 
   Timer? _timer;
   Future<void> _writes = Future<void>.value();
@@ -56,6 +67,16 @@ class _PlayScreenState extends State<PlayScreen> with WidgetsBindingObserver {
   String? _notice;
   int _wrongGuesses = 0;
   int _elapsedSeconds = 0;
+  int _hintsUsed = 0;
+
+  // Hints already counted by an earlier session. The attempts table stores
+  // only a count, never which kinds were shown, so this is the floor the
+  // total can never drop below.
+  int _restoredHints = 0;
+
+  // One entry per hint kind, so a hint is offered once and revealed once.
+  final Set<HintKind> _revealedHints = {};
+  final Set<HintKind> _declinedHints = {};
 
   int? _attemptId;
   String? _lastGuess;
@@ -77,6 +98,9 @@ class _PlayScreenState extends State<PlayScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     _guess.dispose();
+    if (widget.settings == null) {
+      _settings.dispose();
+    }
     super.dispose();
   }
 
@@ -135,6 +159,10 @@ class _PlayScreenState extends State<PlayScreen> with WidgetsBindingObserver {
       _startedAt = restored.startedAt;
       _wrongGuesses = restored.wrongGuesses;
       _elapsedSeconds = restored.elapsedSeconds;
+      // A stored count outside the possible range is treated as the nearest
+      // valid one rather than trusted.
+      _hintsUsed = restored.hintsUsed.clamp(0, HintKind.values.length);
+      _restoredHints = _hintsUsed;
       _lastGuess = restored.lastGuess;
       // A reopened attempt always arrives paused: the clock must not count
       // the time the puzzle was closed.
@@ -183,6 +211,7 @@ class _PlayScreenState extends State<PlayScreen> with WidgetsBindingObserver {
       puzzleId: puzzleId,
       status: _savedStatus,
       wrongGuesses: _wrongGuesses,
+      hintsUsed: _hintsUsed,
       elapsedSeconds: _elapsedSeconds,
       lastGuess: _lastGuess,
       startedAt: _startedAt,
@@ -254,6 +283,10 @@ class _PlayScreenState extends State<PlayScreen> with WidgetsBindingObserver {
       _scrambled = _scramble();
       _elapsedSeconds = 0;
       _wrongGuesses = 0;
+      _hintsUsed = 0;
+      _restoredHints = 0;
+      _revealedHints.clear();
+      _declinedHints.clear();
       _feedback = null;
       _notice = null;
       _lastGuess = null;
@@ -297,6 +330,56 @@ class _PlayScreenState extends State<PlayScreen> with WidgetsBindingObserver {
       _feedback = 'Not quite. Try again.';
     });
     _enqueueSave();
+  }
+
+  /// The hint HintCoach offers right now, or null when the rules say the
+  /// player has not earned one yet.
+  HintSuggestion? get _suggestion {
+    final puzzle = widget.puzzle;
+    if (puzzle == null || _status != GameStatus.running) {
+      return null;
+    }
+
+    return suggestHint(
+      wrongGuesses: _wrongGuesses,
+      elapsedSeconds: _elapsedSeconds,
+      thresholdSeconds: _settings.settings.hintThresholdSeconds,
+      answerLength: puzzle.answer.length,
+    );
+  }
+
+  /// Why HintCoach cannot offer anything, or null when its inputs are sound.
+  String? get _hintError {
+    final puzzle = widget.puzzle;
+    if (puzzle == null || _status != GameStatus.running) {
+      return null;
+    }
+
+    return validateHintInputs(
+      wrongGuesses: _wrongGuesses,
+      elapsedSeconds: _elapsedSeconds,
+      answerLength: puzzle.answer.length,
+    );
+  }
+
+  void _revealHint(HintKind kind) {
+    if (_revealedHints.contains(kind)) {
+      return;
+    }
+
+    setState(() {
+      _revealedHints.add(kind);
+      _declinedHints.remove(kind);
+      // One count per distinct kind. A hint revealed before a restart cannot
+      // be matched to its kind, so the larger of the two keeps a restored
+      // hint from being counted twice.
+      _hintsUsed = max(_restoredHints, _revealedHints.length);
+    });
+    _enqueueSave();
+  }
+
+  void _declineHint(HintKind kind) {
+    setState(() => _declinedHints.add(kind));
   }
 
   @override
@@ -383,6 +466,7 @@ class _PlayScreenState extends State<PlayScreen> with WidgetsBindingObserver {
                 textAlign: TextAlign.center,
               ),
             ],
+            ..._hints(theme, puzzle),
             const SizedBox(height: 24),
             Wrap(
               spacing: 12,
@@ -393,6 +477,106 @@ class _PlayScreenState extends State<PlayScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  List<Widget> _hints(ThemeData theme, Puzzle puzzle) {
+    final widgets = <Widget>[];
+
+    for (final kind in HintKind.values) {
+      if (!_revealedHints.contains(kind)) {
+        continue;
+      }
+
+      widgets.add(const SizedBox(height: 12));
+      widgets.add(
+        Card(
+          color: theme.colorScheme.surfaceContainerHighest,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Hint', style: theme.textTheme.titleSmall),
+                const SizedBox(height: 4),
+                Text(
+                  hintText(
+                    kind: kind,
+                    answer: puzzle.answer,
+                    clue: puzzle.clue,
+                    // The clue sits at the top of this screen already.
+                    clueVisible: true,
+                  ),
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_hintsUsed > 0) {
+      widgets.add(const SizedBox(height: 8));
+      widgets.add(
+        Text('Hints used $_hintsUsed', style: theme.textTheme.bodySmall),
+      );
+    }
+
+    final error = _hintError;
+    if (error != null) {
+      widgets.add(const SizedBox(height: 12));
+      widgets.add(
+        Text(
+          error,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.error,
+          ),
+        ),
+      );
+      return widgets;
+    }
+
+    final suggestion = _suggestion;
+    if (suggestion != null &&
+        !_revealedHints.contains(suggestion.kind) &&
+        !_declinedHints.contains(suggestion.kind)) {
+      widgets.add(const SizedBox(height: 12));
+      widgets.add(
+        Card(
+          color: theme.colorScheme.tertiaryContainer,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Hint available', style: theme.textTheme.titleSmall),
+                const SizedBox(height: 4),
+                Text(
+                  suggestion.explanation,
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    FilledButton.tonal(
+                      onPressed: () => _revealHint(suggestion.kind),
+                      child: const Text('Reveal'),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () => _declineHint(suggestion.kind),
+                      child: const Text('Not now'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return widgets;
   }
 
   Widget _letters(ThemeData theme) {

@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../models/puzzle.dart';
 import '../repositories/puzzle_repository.dart';
+import '../settings/settings_controller.dart';
 import 'editor_screen.dart';
 import 'play_screen.dart';
 
 class CatalogScreen extends StatefulWidget {
-  const CatalogScreen({super.key, this.repository});
+  const CatalogScreen({super.key, this.repository, this.settings});
 
   final PuzzleRepository? repository;
+  final SettingsController? settings;
 
   @override
   State<CatalogScreen> createState() => _CatalogScreenState();
@@ -79,7 +81,11 @@ class _CatalogScreenState extends State<CatalogScreen> {
   void _openPlay(Puzzle puzzle) {
     Navigator.of(
       context,
-    ).push(MaterialPageRoute(builder: (_) => PlayScreen(puzzle: puzzle)));
+    ).push(
+      MaterialPageRoute(
+        builder: (_) => PlayScreen(puzzle: puzzle, settings: widget.settings),
+      ),
+    );
   }
 
   Future<void> _confirmDelete(Puzzle puzzle) async {
